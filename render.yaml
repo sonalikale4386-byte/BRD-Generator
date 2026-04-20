@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: synoptek-brd-generator
+    runtime: node
+    buildCommand: npm install
+    startCommand: node bot/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLAUDE_API_KEY
+        sync: false
+      - key: AZURE_TENANT_ID
+        sync: false
+      - key: AZURE_CLIENT_ID
+        sync: false
+      - key: AZURE_CLIENT_SECRET
+        sync: false

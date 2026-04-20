@@ -1,0 +1,43 @@
+Meeting Notes — Requirements Workshop
+Date: 13 Apr 2026
+Project: LES CRM Implementation
+Attendees: Project Manager, Business Analyst, Sales Head, IT Manager
+
+Key Requirements Discussed:
+
+1. Lead Management
+   - Capture leads from website, email, and phone calls
+   - Assign leads automatically to sales reps based on region
+   - Track lead status: New, Contacted, Qualified, Converted, Lost
+   - Set follow-up reminders for each lead
+
+2. Opportunity Management
+   - Convert qualified leads to opportunities
+   - Track opportunity stages: Discovery, Proposal, Negotiation, Closed Won, Closed Lost
+   - Attach quotes and proposals to opportunities
+   - Forecast revenue based on pipeline
+
+3. Account & Contact Management
+   - Maintain 360-degree view of each customer account
+   - Link multiple contacts to a single account
+   - Track interaction history (calls, emails, meetings)
+   - Store account hierarchy (parent-child relationships)
+
+4. Reporting & Dashboard
+   - Sales manager needs daily pipeline report
+   - Weekly activity report per sales rep
+   - Monthly revenue forecast vs actual
+   - Real-time dashboard for KPIs
+
+5. Integration Requirements
+   - Sync with Outlook for email and calendar
+   - Import existing data from Excel spreadsheets
+   - Export reports to PDF and Excel
+
+Priorities agreed:
+- High: Lead capture, Lead assignment, Opportunity tracking
+- Medium: Reporting dashboard, Outlook integration
+- Low: Advanced analytics, Mobile app
+
+Timeline: Go-live target is Q3 2026
+Budget: Approved for Phase 1 implementation

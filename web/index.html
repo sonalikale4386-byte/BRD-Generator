@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRD Generator — Synoptek</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <img src="synoptek-logo.png" alt="Synoptek" class="header-logo" />
+      <div class="header-info">
+        <span class="header-name">Synoptek BRD Generator</span>
+        <span class="header-status" id="botStatus">● Online</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="hbadge" id="aiBadge">AI: Checking...</span>
+      <span class="hbadge" id="spBadge">SharePoint: Checking...</span>
+      <button class="new-chat-btn" id="newChatBtn" title="New conversation">&#10227; New</button>
+    </div>
+  </header>
+
+  <!-- ── Chat window ─────────────────────────────────────────────────────── -->
+  <div class="chat-wrap">
+
+    <!-- Messages list -->
+    <div class="chat-messages" id="chatMessages"></div>
+
+    <!-- Attached files preview (above input) -->
+    <div class="attach-preview hidden" id="attachPreview">
+      <div class="attach-preview-inner" id="attachPreviewInner"></div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="chat-input-bar">
+      <button class="attach-btn" id="attachBtn" title="Attach files">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </button>
+      <input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.doc" style="display:none" />
+      <input
+        type="text" id="chatInput" class="chat-input"
+        placeholder="Type a message..."
+        autocomplete="off"
+      />
+      <button class="send-btn" id="sendBtn" title="Send">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

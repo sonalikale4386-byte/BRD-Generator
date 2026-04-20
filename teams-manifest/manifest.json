@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.1",
+  "id": "8cd70e5a-a709-4b77-867e-8dc313356fdf",
+  "packageName": "com.brdgenerator.agent",
+  "developer": {
+    "name": "BRD Generator",
+    "websiteUrl": "https://www.example.com",
+    "privacyUrl": "https://www.example.com/privacy",
+    "termsOfUseUrl": "https://www.example.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "BRD Generator",
+    "full": "BRD Generator Agent"
+  },
+  "description": {
+    "short": "Generate BRD from OneDrive & meeting docs",
+    "full": "Generate Business Requirements Documents in Synoptek CRM format from OneDrive documents and meeting transcripts."
+  },
+  "accentColor": "#002344",
+  "bots": [
+    {
+      "botId": "8cd70e5a-a709-4b77-867e-8dc313356fdf",
+      "scopes": ["personal"],
+      "supportsFiles": true,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity"],
+  "validDomains": [
+    "token.botframework.com"
+  ]
+}

@@ -1,0 +1,250 @@
+{
+  "project_name": "Invoice Automation System",
+  "client_name": "Acme Manufacturing Ltd",
+  "platform": "Microsoft Dynamics 365 CRM",
+  "phase": "Phase 1",
+  "prepared_by": "Lead Technical Consultant",
+  "document_date": "09 Apr 2026",
+  "document_version": "v1.0",
+  "status": "Draft",
+  "executive_summary": "Acme Manufacturing Ltd is implementing an end-to-end invoice automation system to eliminate manual data entry, reduce processing errors from 15% to below 1%, and cut invoice cycle time from 5-7 days to same-day processing. This BRD captures the agreed requirements from the April 2026 requirements workshop.",
+
+  "key_stakeholders": [
+    {"name": "CFO",                   "role": "Executive Sponsor",      "organization": "Acme Manufacturing Ltd"},
+    {"name": "IT Manager",            "role": "Technical Lead",         "organization": "Acme Manufacturing Ltd"},
+    {"name": "Finance Team Lead",     "role": "Business Owner",         "organization": "Acme Manufacturing Ltd"},
+    {"name": "Procurement Head",      "role": "Key Stakeholder",        "organization": "Acme Manufacturing Ltd"},
+    {"name": "Lead Technical Consultant", "role": "Solution Architect", "organization": "Consulting Partner"}
+  ],
+
+  "scope_summary": [
+    {"module": "Invoice Capture",       "in_scope_count": 3,  "description": "OCR-based capture via email, scan, and portal"},
+    {"module": "Approval Workflow",     "in_scope_count": 3,  "description": "3-level automated approval workflow"},
+    {"module": "SAP ERP Integration",   "in_scope_count": 2,  "description": "PO matching and GL posting via SAP FI"},
+    {"module": "Vendor Portal",         "in_scope_count": 2,  "description": "Self-service invoice submission and status"},
+    {"module": "Reporting & Analytics", "in_scope_count": 2,  "description": "Processing dashboard and audit trail"},
+    {"module": "Notifications",         "in_scope_count": 1,  "description": "Email and SMS alerts at workflow stages"}
+  ],
+
+  "requirements": [
+    {
+      "id": "LES-001",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "Finance Team Lead",
+      "description": "The system shall capture invoices via three channels: email attachment, flatbed scan, and vendor portal upload, using OCR to extract header and line-item data automatically.",
+      "have_today": "No",
+      "priority": "High",
+      "status": "Draft",
+      "scope": "Invoice Capture",
+      "context": "Currently staff manually key data from paper invoices. OCR must achieve >95% field extraction accuracy. Supported formats: PDF, TIFF, JPG.",
+      "technical_comments": "Evaluate Microsoft Azure Form Recognizer or ABBYY FlexiCapture for OCR engine.",
+      "remarks": "",
+      "requested_by": "CFO"
+    },
+    {
+      "id": "LES-002",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "Finance Team Lead",
+      "description": "The system shall route invoices through a 3-level approval workflow: Team Lead → Finance Manager → CFO (for invoices above INR 1 lakh), with configurable threshold rules.",
+      "have_today": "No",
+      "priority": "High",
+      "status": "Draft",
+      "scope": "Approval Workflow",
+      "context": "Approval thresholds: < INR 10,000 = auto-approve; INR 10,000 – 1L = Team Lead only; > INR 1L = all 3 levels. Each approver has 24-hour SLA.",
+      "technical_comments": "Implement as Dynamics 365 approval flow or Power Automate workflow.",
+      "remarks": "",
+      "requested_by": "CFO"
+    },
+    {
+      "id": "LES-003",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "IT Manager",
+      "description": "The system shall integrate with SAP ERP (FI module) to perform 3-way PO matching and post approved invoices directly to GL accounts without manual intervention.",
+      "have_today": "No",
+      "priority": "High",
+      "status": "Draft",
+      "scope": "SAP ERP Integration",
+      "context": "SAP version: S/4HANA 2021. Integration via RFC/BAPI or REST API. PO matching: invoice qty and amount vs. GRN and PO tolerance ±3%.",
+      "technical_comments": "SAP middleware team must expose BAPI_INCOMINGINVOICE_CREATE. Plan API discovery workshop in Week 2.",
+      "remarks": "",
+      "requested_by": "IT Manager"
+    },
+    {
+      "id": "LES-004",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "Procurement Head",
+      "description": "The system shall provide a vendor self-service portal where vendors can submit invoices, check approval status, and view payment dates without contacting the finance team.",
+      "have_today": "No",
+      "priority": "High",
+      "status": "Draft",
+      "scope": "Vendor Portal",
+      "context": "Approximately 350 active vendors. Portal must support bulk invoice upload (up to 50 invoices per batch). Vendors authenticate via email OTP.",
+      "technical_comments": "Build as Power Pages (formerly Power Apps Portals) connected to Dynamics 365.",
+      "remarks": "",
+      "requested_by": "Procurement Head"
+    },
+    {
+      "id": "LES-005",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "Finance Team Lead",
+      "description": "The system shall send automated email and SMS notifications to the relevant approver and invoice submitter at each stage transition (received, approved, rejected, queried, paid).",
+      "have_today": "Partial",
+      "priority": "Medium",
+      "status": "Draft",
+      "scope": "Notifications",
+      "context": "Current system sends ad-hoc emails only. New system must support templated notifications with invoice number, amount, and action link. SMS via Twilio or similar.",
+      "technical_comments": "Use Power Automate connector for Office 365 email and Twilio for SMS.",
+      "remarks": "",
+      "requested_by": "Finance Team Lead"
+    },
+    {
+      "id": "LES-006",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "IT Manager",
+      "description": "The system shall handle invoice exceptions (PO mismatch, duplicate invoice, missing GRN) by routing them to a dedicated exceptions queue with automated alerts to the responsible buyer.",
+      "have_today": "No",
+      "priority": "High",
+      "status": "Draft",
+      "scope": "Invoice Capture",
+      "context": "Current exception rate is ~8%. Exception types: PO not found, quantity mismatch >3%, duplicate invoice number, GRN not received. Buyer must resolve within 48 hours.",
+      "technical_comments": "Build exception queue as a Dynamics 365 queue. Configure tolerance rules as configurable parameters.",
+      "remarks": "",
+      "requested_by": "Finance Team Lead"
+    },
+    {
+      "id": "LES-007",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "CFO",
+      "description": "The system shall provide a real-time reporting dashboard showing invoice processing KPIs: volume by status, average cycle time, approval bottlenecks, and payment due calendar.",
+      "have_today": "No",
+      "priority": "Medium",
+      "status": "Draft",
+      "scope": "Reporting & Analytics",
+      "context": "Dashboard must be accessible to Finance Manager and CFO. Refresh: real-time for status counts, daily for trend charts. Export to Excel and PDF.",
+      "technical_comments": "Implement using Power BI embedded in Dynamics 365. Dataset sourced from Dataverse.",
+      "remarks": "",
+      "requested_by": "CFO"
+    },
+    {
+      "id": "LES-008",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "IT Manager",
+      "description": "The system shall maintain a complete, immutable audit trail for all invoice lifecycle events, with 7-year retention to meet statutory compliance requirements.",
+      "have_today": "No",
+      "priority": "High",
+      "status": "Draft",
+      "scope": "Reporting & Analytics",
+      "context": "Audit log must capture: event type, timestamp, user ID, IP address, old/new values. Must be exportable for internal and external audit purposes.",
+      "technical_comments": "Store audit logs in Azure Blob Storage (immutable policy). Integrate with Dynamics 365 audit log framework.",
+      "remarks": "",
+      "requested_by": "IT Manager"
+    },
+    {
+      "id": "LES-009",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "IT Manager",
+      "description": "The system shall enforce role-based access control with at least four roles: Invoice Submitter, Approver, Finance Admin, and System Admin. Each role to have clearly defined permissions.",
+      "have_today": "Partial",
+      "priority": "High",
+      "status": "Draft",
+      "scope": "Approval Workflow",
+      "context": "Current access control is unstructured. New RBAC matrix to be defined in detail design phase. Roles to be managed via Azure AD groups.",
+      "technical_comments": "Leverage Dynamics 365 security roles and Azure AD group-based assignment.",
+      "remarks": "",
+      "requested_by": "IT Manager"
+    },
+    {
+      "id": "LES-010",
+      "date": "09 Apr 2026",
+      "source": "Requirements Workshop",
+      "requester": "CFO",
+      "description": "The system shall integrate with the bank payment gateway to initiate approved payments automatically, with same-day payment for invoices approved before 2pm and next-day for after.",
+      "have_today": "No",
+      "priority": "Medium",
+      "status": "Draft",
+      "scope": "SAP ERP Integration",
+      "context": "Bank: HDFC Corporate Banking API. Payment formats: NEFT, RTGS, IMPS. Cut-off time 2pm IST. Requires dual authorisation (checker/maker) for payments above INR 5L.",
+      "technical_comments": "HDFC API credentials to be obtained by Finance team. Build payment initiation as a separate service with dual-auth workflow.",
+      "remarks": "",
+      "requested_by": "CFO"
+    }
+  ],
+
+  "scope_checklist": [
+    {"category": "Invoice Capture",   "module": "OCR Processing",      "sub_category": "Email Capture",     "description": "Capture invoices from monitored email inbox via OCR"},
+    {"category": "Invoice Capture",   "module": "OCR Processing",      "sub_category": "Scan Capture",      "description": "Capture invoices from MFD scanner via OCR"},
+    {"category": "Invoice Capture",   "module": "Portal Upload",       "sub_category": "Vendor Portal",     "description": "Vendor uploads invoice PDF via self-service portal"},
+    {"category": "Approval Workflow", "module": "Workflow Engine",     "sub_category": "Auto Approval",     "description": "Auto-approve invoices below INR 10,000 threshold"},
+    {"category": "Approval Workflow", "module": "Workflow Engine",     "sub_category": "Multi-level",       "description": "Route to Team Lead / Manager / CFO based on amount"},
+    {"category": "ERP Integration",   "module": "SAP FI",              "sub_category": "PO Matching",       "description": "3-way PO match: invoice vs GRN vs PO"},
+    {"category": "ERP Integration",   "module": "SAP FI",              "sub_category": "GL Posting",        "description": "Post approved invoices to GL accounts in SAP"},
+    {"category": "Vendor Portal",     "module": "Self-Service",        "sub_category": "Invoice Submission","description": "Vendor submits and tracks invoices online"},
+    {"category": "Reporting",         "module": "Power BI Dashboard",  "sub_category": "KPI Dashboard",     "description": "Real-time KPI dashboard for Finance team"},
+    {"category": "Compliance",        "module": "Audit Trail",         "sub_category": "7-Year Retention",  "description": "Immutable audit log with 7-year retention"}
+  ],
+
+  "brd_scope": [
+    {"scope": "Invoice Capture",       "sub_part": "Email monitoring and OCR extraction"},
+    {"scope": "Invoice Capture",       "sub_part": "Scanner integration and OCR extraction"},
+    {"scope": "Invoice Capture",       "sub_part": "Vendor portal upload"},
+    {"scope": "Invoice Capture",       "sub_part": "Exception handling and exception queue"},
+    {"scope": "Approval Workflow",     "sub_part": "Configurable threshold rules"},
+    {"scope": "Approval Workflow",     "sub_part": "3-level approval routing"},
+    {"scope": "Approval Workflow",     "sub_part": "SLA tracking and escalation"},
+    {"scope": "SAP Integration",       "sub_part": "3-way PO matching"},
+    {"scope": "SAP Integration",       "sub_part": "GL posting on approval"},
+    {"scope": "Payment Integration",   "sub_part": "Bank API payment initiation"},
+    {"scope": "Payment Integration",   "sub_part": "Dual-auth for high-value payments"},
+    {"scope": "Vendor Portal",         "sub_part": "Invoice submission and tracking"},
+    {"scope": "Vendor Portal",         "sub_part": "Bulk upload"},
+    {"scope": "Notifications",         "sub_part": "Email and SMS at workflow transitions"},
+    {"scope": "Reporting",             "sub_part": "Real-time KPI dashboard"},
+    {"scope": "Reporting",             "sub_part": "Audit trail and compliance export"}
+  ],
+
+  "out_of_scope": [
+    {"item": "Travel and expense claims processing"},
+    {"item": "Payroll payment processing"},
+    {"item": "International multi-currency invoices (Phase 2)"},
+    {"item": "Mobile app for approvers (Phase 2)"},
+    {"item": "Integration with non-SAP legacy ERP systems"}
+  ],
+
+  "scope_definitions": [
+    {"scope": "Invoice Capture",       "description": "All channels and methods for receiving and digitising supplier invoices into the system"},
+    {"scope": "Approval Workflow",     "description": "Automated routing and approval of invoices based on configurable threshold and role rules"},
+    {"scope": "SAP ERP Integration",   "description": "Bi-directional integration with SAP S/4HANA FI module for PO matching and GL posting"},
+    {"scope": "Vendor Portal",         "description": "Web portal for vendors to submit invoices, track status, and view payment schedules"},
+    {"scope": "Notifications",         "description": "Automated email and SMS alerts triggered at each invoice lifecycle stage"},
+    {"scope": "Reporting & Analytics", "description": "Real-time dashboard, KPI reporting, and immutable audit trail for compliance"}
+  ],
+
+  "sign_off": [
+    {"version": "v1.0", "name_and_role": "Lead Technical Consultant — Solution Architect", "signature": "", "date": ""},
+    {"version": "v1.0", "name_and_role": "Finance Team Lead — Business Owner",             "signature": "", "date": ""},
+    {"version": "v1.0", "name_and_role": "CFO — Executive Sponsor",                        "signature": "", "date": ""}
+  ],
+
+  "lovs": [
+    {"epic": "Invoice Capture & OCR",       "cycle": "Sprint 1"},
+    {"epic": "Approval Workflow Engine",     "cycle": "Sprint 2"},
+    {"epic": "SAP ERP Integration",          "cycle": "Sprint 3"},
+    {"epic": "Vendor Self-Service Portal",   "cycle": "Sprint 4"},
+    {"epic": "Notifications & Alerts",       "cycle": "Sprint 2"},
+    {"epic": "Reporting & Audit Trail",      "cycle": "Sprint 5"},
+    {"epic": "Payment Gateway Integration",  "cycle": "Sprint 5"},
+    {"epic": "UAT & Go-Live",                "cycle": "Sprint 6"}
+  ],
+
+  "covered_by_selections": ["Yes", "No", "Partial", "N/A", "Future Phase"],
+  "have_today_selections":  ["Yes", "No", "Partial"]
+}

@@ -1,0 +1,542 @@
+/**
+ * BRD Excel Template Generator
+ * Generates a professional Business Requirement Document Excel template
+ * Run: node resources/generate_brd_template.js
+ */
+
+const ExcelJS = require('exceljs');
+const path = require('path');
+
+// ── Colour palette ──────────────────────────────────────────────────────────
+const C = {
+  navyBg:     '1F3864',   // dark navy  – main title backgrounds
+  blueBg:     '2E75B6',   // medium blue – sheet/section headers
+  colHeadBg:  '4472C4',   // column header background
+  lightBlueBg:'BDD7EE',   // sub-header / label background
+  altRow:     'EBF3FB',   // alternating data row
+  highlightYellow: 'FFF2CC', // required-field highlight
+  white:      'FFFFFF',
+  darkText:   '1F1F1F',
+  midText:    '404040',
+  borderGrey: 'BFBFBF',
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function applyBorder(cell, style = 'thin') {
+  const b = { style, color: { argb: C.borderGrey } };
+  cell.border = { top: b, left: b, bottom: b, right: b };
+}
+
+function hdrCell(sheet, row, col, value, bgArgb, fontArgb = C.white, fontSize = 11, bold = true) {
+  const cell = sheet.getCell(row, col);
+  cell.value = value;
+  cell.font = { name: 'Calibri', size: fontSize, bold, color: { argb: fontArgb } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+  cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+  applyBorder(cell);
+  return cell;
+}
+
+function dataCell(sheet, row, col, value = '', bgArgb = C.white, fontArgb = C.darkText) {
+  const cell = sheet.getCell(row, col);
+  cell.value = value;
+  cell.font = { name: 'Calibri', size: 10, color: { argb: fontArgb } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+  cell.alignment = { vertical: 'middle', wrapText: true };
+  applyBorder(cell);
+  return cell;
+}
+
+function labelCell(sheet, row, col, value) {
+  const cell = dataCell(sheet, row, col, value, C.lightBlueBg, C.darkText);
+  cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: C.darkText } };
+  cell.alignment = { vertical: 'middle', horizontal: 'right', wrapText: true };
+  return cell;
+}
+
+function sectionTitle(sheet, row, col, colSpan, value) {
+  sheet.mergeCells(row, col, row, col + colSpan - 1);
+  const cell = hdrCell(sheet, row, col, value, C.blueBg, C.white, 11, true);
+  cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1, wrapText: true };
+  sheet.getRow(row).height = 22;
+  return cell;
+}
+
+function addDataRows(sheet, startRow, colCount, rowCount = 5, altColor = C.altRow) {
+  for (let r = startRow; r < startRow + rowCount; r++) {
+    const bg = (r - startRow) % 2 === 0 ? C.white : altColor;
+    for (let c = 1; c <= colCount; c++) {
+      dataCell(sheet, r, c, '', bg);
+    }
+    sheet.getRow(r).height = 20;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 1 – Cover Page
+// ══════════════════════════════════════════════════════════════════════════
+function buildCoverSheet(wb) {
+  const ws = wb.addWorksheet('Cover Page', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 4 }, { width: 25 }, { width: 35 }, { width: 20 }, { width: 15 }, { width: 4 }
+  ];
+
+  // Banner
+  ws.mergeCells('B2:E5');
+  const banner = ws.getCell('B2');
+  banner.value = 'BUSINESS REQUIREMENTS DOCUMENT';
+  banner.font = { name: 'Calibri', size: 24, bold: true, color: { argb: C.white } };
+  banner.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.navyBg } };
+  banner.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+  ws.getRow(2).height = 20; ws.getRow(3).height = 30;
+  ws.getRow(4).height = 30; ws.getRow(5).height = 20;
+
+  // Sub-banner
+  ws.mergeCells('B6:E6');
+  const sub = ws.getCell('B6');
+  sub.value = '[ Project Name ]';
+  sub.font = { name: 'Calibri', size: 16, italic: true, color: { argb: C.white } };
+  sub.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.blueBg } };
+  sub.alignment = { vertical: 'middle', horizontal: 'center' };
+  ws.getRow(6).height = 28;
+
+  // Meta fields
+  const meta = [
+    ['Project Name',    ''],
+    ['Project Code',    ''],
+    ['Client / Organization', ''],
+    ['Prepared By',     ''],
+    ['Reviewed By',     ''],
+    ['Approved By',     ''],
+    ['Document Version','v1.0'],
+    ['Date',            ''],
+    ['Status',          'Draft'],
+    ['Confidentiality', 'Confidential'],
+  ];
+
+  let r = 8;
+  meta.forEach(([label, val]) => {
+    ws.getRow(r).height = 22;
+    ws.mergeCells(r, 2, r, 2);
+    labelCell(ws, r, 2, label);
+    ws.mergeCells(r, 3, r, 5);
+    const vc = dataCell(ws, r, 3, val, C.highlightYellow);
+    vc.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    r++;
+  });
+
+  // Footer note
+  ws.mergeCells(`B${r + 1}:E${r + 1}`);
+  const note = ws.getCell(`B${r + 1}`);
+  note.value = 'This document is auto-generated by the BRD Agent. Review and validate all sections before sign-off.';
+  note.font = { name: 'Calibri', size: 9, italic: true, color: { argb: '808080' } };
+  note.alignment = { horizontal: 'center' };
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 2 – Document Control
+// ══════════════════════════════════════════════════════════════════════════
+function buildDocControl(wb) {
+  const ws = wb.addWorksheet('Document Control', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 10 }, { width: 18 }, { width: 35 }, { width: 22 }, { width: 22 }, { width: 18 }
+  ];
+
+  // Version History
+  sectionTitle(ws, 1, 1, 6, '1. Version History');
+  const vhCols = ['Version', 'Date', 'Description of Change', 'Author', 'Reviewed By', 'Status'];
+  vhCols.forEach((h, i) => hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+  addDataRows(ws, 3, 6, 6);
+
+  // Approvals
+  sectionTitle(ws, 11, 1, 6, '2. Document Approvals');
+  const apCols = ['Role', 'Name', 'Department', 'Signature', 'Date', 'Status'];
+  apCols.forEach((h, i) => hdrCell(ws, 12, i + 1, h, C.colHeadBg));
+  ws.getRow(12).height = 22;
+  addDataRows(ws, 13, 6, 5);
+
+  // Distribution
+  sectionTitle(ws, 20, 1, 6, '3. Document Distribution');
+  const distCols = ['Name', 'Role', 'Department', 'Email', 'Date Sent', 'Copy Type'];
+  distCols.forEach((h, i) => hdrCell(ws, 21, i + 1, h, C.colHeadBg));
+  ws.getRow(21).height = 22;
+  addDataRows(ws, 22, 6, 5);
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 3 – Executive Summary
+// ══════════════════════════════════════════════════════════════════════════
+function buildExecutiveSummary(wb) {
+  const ws = wb.addWorksheet('Executive Summary', { views: [{ showGridLines: false }] });
+  ws.columns = [{ width: 28 }, { width: 70 }];
+
+  const sections = [
+    ['1. Executive Summary', null],
+    ['Project Overview', ''],
+    ['Business Problem / Opportunity', ''],
+    ['Proposed Solution', ''],
+    ['Expected Business Value', ''],
+    ['2. Project Background', null],
+    ['Current State', ''],
+    ['Future State', ''],
+    ['Gap Analysis', ''],
+    ['3. Success Criteria', null],
+    ['Measurable Outcomes', ''],
+    ['Key Performance Indicators (KPIs)', ''],
+    ['Acceptance Criteria', ''],
+  ];
+
+  let r = 1;
+  sections.forEach(([label, val]) => {
+    ws.getRow(r).height = val === null ? 22 : 40;
+    if (val === null) {
+      sectionTitle(ws, r, 1, 2, label);
+    } else {
+      labelCell(ws, r, 1, label);
+      const vc = dataCell(ws, r, 2, val, C.highlightYellow);
+      vc.alignment = { vertical: 'top', wrapText: true };
+    }
+    r++;
+  });
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 4 – Business Objectives
+// ══════════════════════════════════════════════════════════════════════════
+function buildBusinessObjectives(wb) {
+  const ws = wb.addWorksheet('Business Objectives', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 10 }, { width: 35 }, { width: 40 }, { width: 20 }, { width: 20 }
+  ];
+
+  sectionTitle(ws, 1, 1, 5, '1. Business Objectives');
+  ['Obj. ID', 'Objective', 'Description / Rationale', 'Priority', 'Owner'].forEach((h, i) =>
+    hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+  addDataRows(ws, 3, 5, 8);
+
+  sectionTitle(ws, 13, 1, 5, '2. Key Performance Indicators (KPIs)');
+  ['KPI ID', 'KPI Name', 'Measurement Method', 'Baseline', 'Target'].forEach((h, i) =>
+    hdrCell(ws, 14, i + 1, h, C.colHeadBg));
+  ws.getRow(14).height = 22;
+  addDataRows(ws, 15, 5, 6);
+
+  sectionTitle(ws, 23, 1, 5, '3. Strategic Alignment');
+  ['Strategy Ref', 'Strategic Goal', 'How This Project Aligns', 'Impact', 'Priority'].forEach((h, i) =>
+    hdrCell(ws, 24, i + 1, h, C.colHeadBg));
+  ws.getRow(24).height = 22;
+  addDataRows(ws, 25, 5, 5);
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 5 – Scope
+// ══════════════════════════════════════════════════════════════════════════
+function buildScope(wb) {
+  const ws = wb.addWorksheet('Scope', { views: [{ showGridLines: false }] });
+  ws.columns = [{ width: 10 }, { width: 55 }, { width: 35 }];
+
+  sectionTitle(ws, 1, 1, 3, '1. In Scope');
+  ['#', 'In-Scope Item / Feature', 'Notes'].forEach((h, i) =>
+    hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+  addDataRows(ws, 3, 3, 8);
+
+  sectionTitle(ws, 13, 1, 3, '2. Out of Scope');
+  ['#', 'Out-of-Scope Item', 'Reason / Notes'].forEach((h, i) =>
+    hdrCell(ws, 14, i + 1, h, C.colHeadBg));
+  ws.getRow(14).height = 22;
+  addDataRows(ws, 15, 3, 8);
+
+  sectionTitle(ws, 25, 1, 3, '3. Scope Boundaries & Constraints');
+  ['#', 'Boundary / Constraint', 'Impact'].forEach((h, i) =>
+    hdrCell(ws, 26, i + 1, h, C.colHeadBg));
+  ws.getRow(26).height = 22;
+  addDataRows(ws, 27, 3, 5);
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 6 – Stakeholders
+// ══════════════════════════════════════════════════════════════════════════
+function buildStakeholders(wb) {
+  const ws = wb.addWorksheet('Stakeholders', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 10 }, { width: 22 }, { width: 22 }, { width: 22 },
+    { width: 22 }, { width: 18 }, { width: 18 }, { width: 20 }
+  ];
+
+  sectionTitle(ws, 1, 1, 8, '1. Stakeholder Register');
+  const cols = ['ID', 'Name', 'Title / Role', 'Organization', 'Responsibility', 'Influence', 'Interest', 'Contact / Email'];
+  cols.forEach((h, i) => hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+  addDataRows(ws, 3, 8, 10);
+
+  sectionTitle(ws, 15, 1, 8, '2. RACI Matrix');
+  ['Process / Activity', 'R – Responsible', 'A – Accountable', 'C – Consulted', 'I – Informed', '', '', ''].forEach((h, i) =>
+    hdrCell(ws, 16, i + 1, h, C.colHeadBg));
+  ws.getRow(16).height = 22;
+  addDataRows(ws, 17, 8, 8);
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 7 – Business Requirements
+// ══════════════════════════════════════════════════════════════════════════
+function buildBusinessRequirements(wb) {
+  const ws = wb.addWorksheet('Business Requirements', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 12 }, { width: 20 }, { width: 50 }, { width: 15 },
+    { width: 18 }, { width: 40 }, { width: 20 }
+  ];
+
+  sectionTitle(ws, 1, 1, 7, 'Business Requirements (BR)');
+  const cols = ['BR ID', 'Category', 'Requirement Description', 'Priority', 'Source', 'Acceptance Criteria', 'Status'];
+  cols.forEach((h, i) => hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+
+  // Sample placeholder rows
+  const priorities = ['High', 'Medium', 'Low'];
+  const statuses = ['Draft', 'Approved', 'In Review'];
+  for (let r = 3; r <= 22; r++) {
+    const bg = (r - 3) % 2 === 0 ? C.white : C.altRow;
+    dataCell(ws, r, 1, `BR-${String(r - 2).padStart(3, '0')}`, bg);
+    for (let c = 2; c <= 7; c++) dataCell(ws, r, c, '', bg);
+    ws.getRow(r).height = 25;
+  }
+
+  // Add data validation for Priority and Status columns
+  for (let r = 3; r <= 22; r++) {
+    ws.getCell(r, 4).dataValidation = {
+      type: 'list', allowBlank: true,
+      formulae: ['"High,Medium,Low"']
+    };
+    ws.getCell(r, 7).dataValidation = {
+      type: 'list', allowBlank: true,
+      formulae: ['"Draft,In Review,Approved,Rejected"']
+    };
+  }
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 8 – Functional Requirements
+// ══════════════════════════════════════════════════════════════════════════
+function buildFunctionalRequirements(wb) {
+  const ws = wb.addWorksheet('Functional Requirements', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 12 }, { width: 20 }, { width: 50 }, { width: 15 },
+    { width: 15 }, { width: 15 }, { width: 20 }
+  ];
+
+  sectionTitle(ws, 1, 1, 7, 'Functional Requirements (FR)');
+  const cols = ['FR ID', 'Module / Feature', 'Requirement Description', 'Priority', 'BR Reference', 'Dependency', 'Status'];
+  cols.forEach((h, i) => hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+
+  for (let r = 3; r <= 22; r++) {
+    const bg = (r - 3) % 2 === 0 ? C.white : C.altRow;
+    dataCell(ws, r, 1, `FR-${String(r - 2).padStart(3, '0')}`, bg);
+    for (let c = 2; c <= 7; c++) dataCell(ws, r, c, '', bg);
+    ws.getRow(r).height = 25;
+    ws.getCell(r, 4).dataValidation = { type: 'list', allowBlank: true, formulae: ['"High,Medium,Low"'] };
+    ws.getCell(r, 7).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Draft,In Review,Approved,Rejected"'] };
+  }
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 9 – Non-Functional Requirements
+// ══════════════════════════════════════════════════════════════════════════
+function buildNFR(wb) {
+  const ws = wb.addWorksheet('Non-Functional Req', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 12 }, { width: 22 }, { width: 50 }, { width: 15 }, { width: 30 }, { width: 15 }
+  ];
+
+  sectionTitle(ws, 1, 1, 6, 'Non-Functional Requirements (NFR)');
+  const cols = ['NFR ID', 'Category', 'Requirement Description', 'Priority', 'Acceptance Criteria', 'Status'];
+  cols.forEach((h, i) => hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+
+  const nfrCategories = [
+    'Performance', 'Security', 'Scalability', 'Availability / Reliability',
+    'Usability', 'Maintainability', 'Compliance / Legal', 'Integration'
+  ];
+
+  nfrCategories.forEach((cat, idx) => {
+    const r = 3 + idx;
+    const bg = idx % 2 === 0 ? C.white : C.altRow;
+    dataCell(ws, r, 1, `NFR-${String(idx + 1).padStart(3, '0')}`, bg);
+    dataCell(ws, r, 2, cat, bg);
+    for (let c = 3; c <= 6; c++) dataCell(ws, r, c, '', bg);
+    ws.getRow(r).height = 25;
+    ws.getCell(r, 4).dataValidation = { type: 'list', allowBlank: true, formulae: ['"High,Medium,Low"'] };
+    ws.getCell(r, 6).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Draft,In Review,Approved,Rejected"'] };
+  });
+
+  // Extra blank rows
+  for (let r = 11; r <= 17; r++) {
+    const bg = (r - 11) % 2 === 0 ? C.white : C.altRow;
+    for (let c = 1; c <= 6; c++) dataCell(ws, r, c, '', bg);
+    ws.getRow(r).height = 25;
+  }
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 10 – Assumptions & Constraints
+// ══════════════════════════════════════════════════════════════════════════
+function buildAssumptionsConstraints(wb) {
+  const ws = wb.addWorksheet('Assumptions & Constraints', { views: [{ showGridLines: false }] });
+  ws.columns = [{ width: 10 }, { width: 18 }, { width: 55 }, { width: 30 }, { width: 20 }];
+
+  sectionTitle(ws, 1, 1, 5, '1. Assumptions');
+  ['ID', 'Category', 'Assumption', 'Impact if Wrong', 'Owner'].forEach((h, i) =>
+    hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+  addDataRows(ws, 3, 5, 8);
+
+  sectionTitle(ws, 13, 1, 5, '2. Constraints');
+  ['ID', 'Type', 'Constraint', 'Impact', 'Mitigation'].forEach((h, i) =>
+    hdrCell(ws, 14, i + 1, h, C.colHeadBg));
+  ws.getRow(14).height = 22;
+  addDataRows(ws, 15, 5, 8);
+
+  sectionTitle(ws, 25, 1, 5, '3. Dependencies');
+  ['ID', 'Dependency Type', 'Description', 'Owner', 'Due Date'].forEach((h, i) =>
+    hdrCell(ws, 26, i + 1, h, C.colHeadBg));
+  ws.getRow(26).height = 22;
+  addDataRows(ws, 27, 5, 6);
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 11 – Risk Register
+// ══════════════════════════════════════════════════════════════════════════
+function buildRisks(wb) {
+  const ws = wb.addWorksheet('Risk Register', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 10 }, { width: 20 }, { width: 40 }, { width: 15 },
+    { width: 15 }, { width: 15 }, { width: 35 }, { width: 18 }
+  ];
+
+  sectionTitle(ws, 1, 1, 8, 'Risk Register');
+  const cols = ['Risk ID', 'Category', 'Risk Description', 'Probability', 'Impact', 'Risk Level', 'Mitigation Strategy', 'Owner'];
+  cols.forEach((h, i) => hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+
+  for (let r = 3; r <= 17; r++) {
+    const bg = (r - 3) % 2 === 0 ? C.white : C.altRow;
+    dataCell(ws, r, 1, `RSK-${String(r - 2).padStart(3, '0')}`, bg);
+    for (let c = 2; c <= 8; c++) dataCell(ws, r, c, '', bg);
+    ws.getRow(r).height = 25;
+    ['H,M,L', 'H,M,L', 'High,Medium,Low'].forEach((vals, ci) => {
+      const col = [4, 5, 6][ci];
+      ws.getCell(r, col).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${vals}"`] };
+    });
+  }
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 12 – Timeline & Milestones
+// ══════════════════════════════════════════════════════════════════════════
+function buildTimeline(wb) {
+  const ws = wb.addWorksheet('Timeline & Milestones', { views: [{ showGridLines: false }] });
+  ws.columns = [
+    { width: 10 }, { width: 35 }, { width: 40 }, { width: 18 },
+    { width: 18 }, { width: 18 }, { width: 18 }
+  ];
+
+  sectionTitle(ws, 1, 1, 7, '1. Project Milestones');
+  const cols = ['MS ID', 'Milestone', 'Description / Deliverable', 'Planned Date', 'Actual Date', 'Owner', 'Status'];
+  cols.forEach((h, i) => hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+
+  const milestones = [
+    'Project Kick-off', 'Requirements Sign-off', 'Design Approval',
+    'Development Complete', 'UAT Start', 'UAT Sign-off', 'Go-Live', 'Project Closure'
+  ];
+  milestones.forEach((ms, idx) => {
+    const r = 3 + idx;
+    const bg = idx % 2 === 0 ? C.white : C.altRow;
+    dataCell(ws, r, 1, `MS-${String(idx + 1).padStart(2, '0')}`, bg);
+    dataCell(ws, r, 2, ms, bg);
+    for (let c = 3; c <= 7; c++) dataCell(ws, r, c, '', bg);
+    ws.getRow(r).height = 22;
+    ws.getCell(r, 7).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Not Started,In Progress,Completed,Delayed"'] };
+  });
+
+  sectionTitle(ws, 13, 1, 7, '2. Phase Plan');
+  ['Phase', 'Activities', 'Start Date', 'End Date', 'Duration', 'Owner', 'Status'].forEach((h, i) =>
+    hdrCell(ws, 14, i + 1, h, C.colHeadBg));
+  ws.getRow(14).height = 22;
+  addDataRows(ws, 15, 7, 6);
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHEET 13 – Glossary
+// ══════════════════════════════════════════════════════════════════════════
+function buildGlossary(wb) {
+  const ws = wb.addWorksheet('Glossary', { views: [{ showGridLines: false }] });
+  ws.columns = [{ width: 10 }, { width: 30 }, { width: 65 }, { width: 20 }];
+
+  sectionTitle(ws, 1, 1, 4, 'Glossary of Terms & Abbreviations');
+  ['#', 'Term / Abbreviation', 'Definition', 'Source'].forEach((h, i) =>
+    hdrCell(ws, 2, i + 1, h, C.colHeadBg));
+  ws.getRow(2).height = 22;
+  addDataRows(ws, 3, 4, 15);
+
+  return ws;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MAIN
+// ══════════════════════════════════════════════════════════════════════════
+async function main() {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'BRD Agent – Copilot Studio';
+  wb.lastModifiedBy = 'BRD Agent';
+  wb.created = new Date();
+  wb.modified = new Date();
+  wb.properties.date1904 = false;
+
+  console.log('Building sheets...');
+  buildCoverSheet(wb);
+  buildDocControl(wb);
+  buildExecutiveSummary(wb);
+  buildBusinessObjectives(wb);
+  buildScope(wb);
+  buildStakeholders(wb);
+  buildBusinessRequirements(wb);
+  buildFunctionalRequirements(wb);
+  buildNFR(wb);
+  buildAssumptionsConstraints(wb);
+  buildRisks(wb);
+  buildTimeline(wb);
+  buildGlossary(wb);
+
+  const outPath = path.join(__dirname, '..', 'output', 'BRD_Template.xlsx');
+  await wb.xlsx.writeFile(outPath);
+  console.log(`✓ BRD Template saved → ${outPath}`);
+}
+
+main().catch(err => { console.error('Error:', err); process.exit(1); });

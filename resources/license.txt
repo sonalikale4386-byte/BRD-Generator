@@ -1,0 +1,7 @@
+Synoptek BRD Generator
+Copyright (c) 2025 Synoptek
+
+This software is proprietary and confidential. Unauthorized copying,
+distribution, or use of this software, via any medium, is strictly prohibited.
+
+For internal Synoptek use only.

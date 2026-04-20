@@ -1,0 +1,90 @@
+{
+  "name": "brd-generator",
+  "version": "2.0.0",
+  "description": "Synoptek BRD Generator — Standalone Web App",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node bot/server.js",
+    "dev": "node bot/server.js",
+    "share": "node bot/share.js",
+    "electron": "electron electron/main.js",
+    "build:exe": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win --x64",
+    "build:portable": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win portable --x64",
+    "build:zip": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win zip --x64",
+    "publish": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win --x64 --publish always"
+  },
+  "keywords": [],
+  "author": "Synoptek",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.15.0",
+    "dotenv": "^17.4.1",
+    "electron-updater": "^6.8.3",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "localtunnel": "^2.0.2",
+    "mammoth": "^1.12.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
+    "jimp": "^1.6.1"
+  },
+  "build": {
+    "appId": "com.synoptek.brd-generator",
+    "productName": "Synoptek BRD Generator",
+    "copyright": "Copyright © 2025 Synoptek",
+    "publish": {
+      "provider": "github",
+      "owner": "sonalikale4386-byte",
+      "repo": "BRD-Generator",
+      "releaseType": "release"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "electron"
+    },
+    "files": [
+      "electron/**/*",
+      "bot/**/*",
+      "web/**/*",
+      "resources/**/*",
+      "node_modules/**/*",
+      ".env",
+      "!node_modules/.cache/**",
+      "!**/*.md",
+      "!test-docs/**",
+      "!output/**",
+      "!workflows/**",
+      "!teams-manifest/**"
+    ],
+    "asar": false,
+    "toolsets": {
+      "winCodeSign": "1.1.0"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "electron/icon.png",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
