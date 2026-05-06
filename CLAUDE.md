@@ -1,10 +1,10 @@
 # Project Context
 
-This is my AI agent workspace. I will use it for differnent document generations.
+This is my AI agent workspace. I will use it for differnent automated document generations.
 
 # About me
 
-I am Lead technical consultant. I will create different project for automating processes.
+I am Lead technical consultant. I will create different apps/agent for automating processes.
 
 
 # Rules

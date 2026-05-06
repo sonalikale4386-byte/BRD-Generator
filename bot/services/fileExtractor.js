@@ -61,10 +61,32 @@ class FileExtractor {
       return data.text || '';
     }
 
-    if (ext === '.docx') {
+    if (ext === '.docx' || ext === '.doc') {
       const mammoth = require('mammoth');
       const result  = await mammoth.extractRawText({ buffer });
       return result.value || '';
+    }
+
+    if (ext === '.xlsx' || ext === '.xls') {
+      const ExcelJS = require('exceljs');
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+      let text = '';
+      wb.eachSheet(ws => {
+        text += `\n=== Sheet: ${ws.name} ===\n`;
+        ws.eachRow(row => {
+          const vals = (row.values || []).slice(1)
+            .filter(v => v !== null && v !== undefined && String(v).trim() !== '')
+            .map(v => {
+              if (typeof v === 'object' && v !== null) {
+                return v.text || v.result || v.formula || JSON.stringify(v);
+              }
+              return String(v);
+            });
+          if (vals.length) text += vals.join(' | ') + '\n';
+        });
+      });
+      return text.trim();
     }
 
     return buffer.toString('utf8');

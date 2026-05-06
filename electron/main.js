@@ -1,7 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, shell, dialog } = require('electron');
-const { autoUpdater } = require('electron-updater');
+const { app, BrowserWindow, shell, dialog } = require('electron'); // dialog kept for startup errors
 const path = require('path');
 const http = require('http');
 const net  = require('net');
@@ -39,33 +38,45 @@ function waitForServer(port, retries = 40) {
   });
 }
 
-// ─── App root (real filesystem path, works with asar:false) ──────────────────
+// ─── App root — works with both asar:true and asar:false ─────────────────────
 
 function getAppRoot() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'app')
-    : path.join(__dirname, '..');
+  if (!app.isPackaged) return path.join(__dirname, '..');
+  // asar:true  → files live inside app.asar (Electron patches fs/require for it)
+  // asar:false → files live in resources/app directory
+  const asarPath  = path.join(process.resourcesPath, 'app.asar');
+  const plainPath = path.join(process.resourcesPath, 'app');
+  return fs.existsSync(plainPath) ? plainPath : asarPath;
 }
 
 // ─── Configure writable paths before starting the server ─────────────────────
 
 function configurePaths() {
-  const outputDir = path.join(
-    app.getPath('documents'),
-    'Synoptek BRD Generator',
-    'output'
-  );
+  // Keep folder name as 'Synoptek BRD Generator' to preserve existing session history.
+  // Migrate from old path if a rename already created a separate folder.
+  const oldOutputDir = path.join(app.getPath('documents'), 'Synoptek BRD Generator',    'output');
+  const newOutputDir = path.join(app.getPath('documents'), 'Synoptek CE BRD Generator', 'output');
+
+  let outputDir = oldOutputDir;
+  // If only the new folder exists (fresh install after rename), migrate back to old name
+  if (!fs.existsSync(oldOutputDir) && fs.existsSync(newOutputDir)) {
+    try { fs.renameSync(path.dirname(newOutputDir), path.dirname(oldOutputDir)); } catch {}
+  }
   fs.mkdirSync(outputDir, { recursive: true });
   process.env.OUTPUT_DIR = outputDir;
 
   const userEnvPath = path.join(app.getPath('userData'), '.env');
   const bundledEnv  = path.join(getAppRoot(), '.env');
+
+  // Always copy bundled .env → userData so API key updates propagate on every app start
+  // Use readFileSync+writeFileSync (copyFileSync doesn't work from inside asar)
   if (fs.existsSync(bundledEnv)) {
-    fs.copyFileSync(bundledEnv, userEnvPath);
+    fs.writeFileSync(userEnvPath, fs.readFileSync(bundledEnv));
   } else if (!fs.existsSync(userEnvPath)) {
     fs.writeFileSync(userEnvPath,
-      '# Synoptek BRD Generator — Configuration\n\n' +
-      'CLAUDE_API_KEY=\n' +
+      '# Synoptek CE BRD Generator — Configuration\n\n' +
+      '# Claude API (https://console.anthropic.com)\n' +
+      'CLAUDE_API_KEY=\n\n' +
       'AZURE_TENANT_ID=\n' +
       'AZURE_CLIENT_ID=\n' +
       'AZURE_CLIENT_SECRET=\n'
@@ -88,34 +99,65 @@ function startServer(port) {
 function setupAutoUpdater() {
   if (!app.isPackaged) return;
 
-  autoUpdater.autoDownload    = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  let autoUpdater;
+  try {
+    autoUpdater = require('electron-updater').autoUpdater;
+  } catch (e) {
+    console.warn('electron-updater not available:', e.message);
+    return;
+  }
 
-  autoUpdater.on('update-available', () => {
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Available',
-      message: 'A new version of Synoptek BRD Generator is available.\nIt will download in the background and install when you close the app.',
-      buttons: ['OK'],
-    });
+  autoUpdater.autoDownload         = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger               = null;
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`🔄 Update available (v${info.version}) — downloading silently`);
+    // Show a non-blocking banner in the web UI
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(`
+        (function() {
+          if (document.getElementById('_upd_banner')) return;
+          const b = document.createElement('div');
+          b.id = '_upd_banner';
+          b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1d4ed8;color:#fff;text-align:center;padding:8px 16px;font-size:13px;font-family:sans-serif';
+          b.textContent = 'Downloading update v${info.version}…';
+          document.body.appendChild(b);
+        })()
+      `).catch(() => {});
+    }
   });
 
-  autoUpdater.on('update-downloaded', () => {
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Ready',
-      message: 'Update downloaded. The app will restart to apply the update.',
-      buttons: ['Restart Now', 'Later'],
-    }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall();
-    });
+  autoUpdater.on('update-not-available', () => console.log('✅ App is up to date'));
+
+  // Update fully downloaded — restart automatically, no user click required
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`✅ Update v${info.version} downloaded — restarting automatically in 5 s`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.executeJavaScript(`
+        (function() {
+          const b = document.getElementById('_upd_banner') || document.createElement('div');
+          b.id = '_upd_banner';
+          b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#16a34a;color:#fff;text-align:center;padding:8px 16px;font-size:13px;font-family:sans-serif';
+          b.textContent = 'Update v${info.version} ready — restarting in 5 seconds…';
+          if (!b.parentNode) document.body.appendChild(b);
+          let s = 4;
+          const t = setInterval(() => {
+            b.textContent = 'Update v${info.version} ready — restarting in ' + s-- + ' second' + (s === 0 ? '' : 's') + '…';
+            if (s < 0) clearInterval(t);
+          }, 1000);
+        })()
+      `).catch(() => {});
+    }
+    // true = silent NSIS install (no install UI), true = relaunch after install
+    setTimeout(() => autoUpdater.quitAndInstall(true, true), 5000);
   });
 
   autoUpdater.on('error', (err) => {
     console.error('Auto-updater error:', err.message);
   });
 
-  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.checkForUpdates();
 }
 
 // ─── BrowserWindow ───────────────────────────────────────────────────────────
@@ -128,7 +170,7 @@ function createWindow(port) {
     height: 820,
     minWidth: 820,
     minHeight: 600,
-    title: 'Synoptek BRD Generator',
+    title: 'Synoptek CE BRD Generator',
     ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
     webPreferences: {
       nodeIntegration: false,

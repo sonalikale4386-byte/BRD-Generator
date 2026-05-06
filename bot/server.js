@@ -25,6 +25,8 @@ const fs      = require('fs');
 const { ClaudeService } = require('./services/claudeService');
 const { FileExtractor } = require('./services/fileExtractor');
 const { generateExcel } = require('./brdCore');
+const { generateWord  } = require('./services/wordBuilder');
+const { generatePDF   } = require('./services/pdfBuilder');
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 const PORT    = process.env.PORT || 3978;
@@ -66,7 +68,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 20 * 1024 * 1024, files: 10 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['.pdf', '.docx', '.txt', '.doc'];
+    const allowed = ['.pdf', '.docx', '.txt', '.doc', '.xlsx', '.xls'];
     cb(null, allowed.includes(path.extname(file.originalname).toLowerCase()));
   },
 });
@@ -126,23 +128,111 @@ async function extractBuffer(extractor, buffer, fileName) {
   }
 }
 
+/** Generate output file in requested format */
+async function generateOutput(brdData, outputDir, format) {
+  if (format === 'word') return generateWord(brdData, outputDir);
+  if (format === 'pdf')  return generatePDF(brdData, outputDir);
+  return generateExcel(brdData, outputDir);
+}
+
+const LAST_BRD_PATH  = path.join(OUTPUT, 'last_brd.json');
+const SESSIONS_DIR   = path.join(OUTPUT, 'sessions');
+const USAGE_LOG_PATH = path.join(OUTPUT, 'usage_log.json');
+if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+
+// Claude Sonnet 4.6 pricing (USD per 1M tokens)
+const PRICE_INPUT_PER_M  = 3.00;
+const PRICE_OUTPUT_PER_M = 15.00;
+
+function calcCost(input_tokens, output_tokens) {
+  const input_cost  = (input_tokens  / 1_000_000) * PRICE_INPUT_PER_M;
+  const output_cost = (output_tokens / 1_000_000) * PRICE_OUTPUT_PER_M;
+  return parseFloat((input_cost + output_cost).toFixed(6));
+}
+
+/** Append one token-usage entry to usage_log.json */
+function logUsage(projectName, usage) {
+  try {
+    let log = [];
+    if (fs.existsSync(USAGE_LOG_PATH)) {
+      try { log = JSON.parse(fs.readFileSync(USAGE_LOG_PATH, 'utf8')); } catch {}
+    }
+    const input_tokens  = usage.input_tokens  || 0;
+    const output_tokens = usage.output_tokens || 0;
+    const cost_usd      = calcCost(input_tokens, output_tokens);
+    log.push({
+      timestamp:     new Date().toISOString(),
+      project:       projectName,
+      input_tokens,
+      output_tokens,
+      total_tokens:  input_tokens + output_tokens,
+      cost_usd,
+    });
+    fs.writeFileSync(USAGE_LOG_PATH, JSON.stringify(log, null, 2), 'utf8');
+    const totals = log.reduce((a, e) => ({
+      i: a.i + e.input_tokens, o: a.o + e.output_tokens, c: a.c + e.cost_usd,
+    }), { i: 0, o: 0, c: 0 });
+    console.log(`  📈 Cumulative — input: ${totals.i.toLocaleString()}, output: ${totals.o.toLocaleString()} tokens | cost: $${totals.c.toFixed(4)} across ${log.length} BRD(s)`);
+  } catch (e) { console.warn('⚠️  Could not write usage_log:', e.message); }
+}
+
+function saveSession(data) {
+  try {
+    const id   = `sess_${Date.now()}`;
+    const file = path.join(SESSIONS_DIR, `${id}.json`);
+    fs.writeFileSync(file, JSON.stringify({ id, ...data }, null, 2), 'utf8');
+    return id;
+  } catch (e) { console.warn('⚠️  Could not save session:', e.message); return null; }
+}
+
+/** Persist the latest BRD JSON so it can be reloaded for future updates */
+function saveLastBRD(brdData) {
+  try {
+    fs.writeFileSync(LAST_BRD_PATH, JSON.stringify(brdData, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('⚠️  Could not save last_brd.json:', e.message);
+  }
+}
+
+/** Load the previously saved BRD JSON, or null if none exists */
+function loadLastBRD() {
+  try {
+    if (fs.existsSync(LAST_BRD_PATH)) {
+      return JSON.parse(fs.readFileSync(LAST_BRD_PATH, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('⚠️  Could not load last_brd.json:', e.message);
+  }
+  return null;
+}
+
 /** Build a BRD response object from brdData + filePath */
 function buildResponse(brdData, filePath) {
-  const fileName = path.basename(filePath);
-  const reqs     = brdData.requirements || [];
+  const fileName    = path.basename(filePath);
+  const reqs        = brdData.requirements || [];
+  const u           = brdData._usage || {};
+  const inputTok    = u.input_tokens  || 0;
+  const outputTok   = u.output_tokens || 0;
   return {
     success:     true,
     downloadUrl: `/output/${encodeURIComponent(fileName)}`,
     fileName,
+    usage: {
+      input_tokens:  inputTok,
+      output_tokens: outputTok,
+      total_tokens:  inputTok + outputTok,
+      cost_usd:      calcCost(inputTok, outputTok),
+    },
     summary: {
       projectName: brdData.project_name,
       date:        brdData.document_date,
       version:     brdData.document_version,
       status:      brdData.status,
       total:       reqs.length,
-      high:        reqs.filter(r => r.priority === 'High').length,
-      medium:      reqs.filter(r => r.priority === 'Medium').length,
-      low:         reqs.filter(r => r.priority === 'Low').length,
+      mustHave:    reqs.filter(r => r.priority === 'Must Have').length,
+      shouldHave:  reqs.filter(r => r.priority === 'Should Have').length,
+      couldHave:   reqs.filter(r => r.priority === 'Could Have').length,
+      wontHave:    reqs.filter(r => r.priority === "Won't Have").length,
     },
     requirements: reqs.map(r => ({
       id:         r.id,
@@ -221,11 +311,14 @@ app.post('/api/sharepoint/list-files', async (req, res) => {
     }
 
     // List files in folder
+    // Note: @microsoft.graph.downloadUrl must NOT be in $select — it's an OData annotation
+    // that Graph returns automatically. Including it in $select causes generalException.
     let filesData;
     try {
+      const encodedFolder = folderPath.split('/').map(p => encodeURIComponent(p)).join('/');
       const r = await http.get(
-        `/drives/${drive.id}/root:/${folderPath}:/children`,
-        { params: { $select: 'id,name,size,lastModifiedDateTime,@microsoft.graph.downloadUrl' } }
+        `/drives/${drive.id}/root:/${encodedFolder}:/children`,
+        { params: { $select: 'id,name,size,lastModifiedDateTime,file,folder' } }
       );
       filesData = r.data.value || [];
     } catch (err) {
@@ -234,6 +327,8 @@ app.post('/api/sharepoint/list-files', async (req, res) => {
           error: `Folder "${folderPath}" not found. Check the folder name or create it in SharePoint.`,
         });
       }
+      const ge = err.response?.data?.error;
+      if (ge) throw new Error(`${ge.code}: ${ge.message}`);
       throw err;
     }
 
@@ -264,37 +359,87 @@ app.post('/api/sharepoint/list-files', async (req, res) => {
   }
 });
 
-// ── POST /api/generate-brd  (Upload source) ───────────────────────────────────
+// ── POST /api/generate-brd  (Upload / Paste source) ──────────────────────────
 app.post('/api/generate-brd', upload.array('files', 10), async (req, res) => {
   try {
-    const projectName = (req.body.projectName || '').trim();
-    const authorName  = (req.body.authorName  || 'BRD Generator').trim();
+    const projectName      = (req.body.projectName      || '').trim();
+    const authorName       = (req.body.authorName       || 'BRD Generator').trim();
+    const brdType          = (req.body.brdType          || 'new').trim();
+    const updateMethod     = (req.body.updateMethod     || '').trim();
+    const detailLevel      = (req.body.detailLevel      || 'elaborated').trim();
+    const fitGap           = (req.body.fitGap           || 'no').trim();
+    const sourceRef        = (req.body.sourceRef        || 'yes').trim();
+    const moscow           = (req.body.moscow           || 'yes').trim();
+    const additionalInputs = (req.body.additionalInputs || '').trim();
+    const outputFormat     = (req.body.outputFormat     || 'excel').trim();
+    const pasteContent     = (req.body.pasteContent     || '').trim();
+
     if (!projectName) return res.status(400).json({ error: 'Project name is required.' });
 
     const files = req.files || [];
-    console.log(`\n📋 [Upload] Generating BRD — "${projectName}"  Files: ${files.length}`);
+    console.log(`\n📋 [Upload] Generating BRD — "${projectName}"  Files: ${files.length}  Format: ${outputFormat}`);
 
     const extractor = new FileExtractor();
     let extractedText = '';
+
+    // Include pasted content as a document
+    if (pasteContent) {
+      extractedText += `\n\n=== Pasted Content ===\n${pasteContent.slice(0, 20000)}`;
+      console.log(`  📋 Pasted content — ${pasteContent.length} chars`);
+    }
+
     for (const file of files) {
       const chunk = await extractBuffer(extractor, file.buffer, file.originalname);
       extractedText += chunk;
       console.log(`  📄 ${file.originalname} — ${chunk.length} chars extracted`);
     }
 
-    // Cap total context at 60 000 chars (~15 000 words) to stay within model limits
     if (extractedText.length > 60000) {
       console.warn(`  ⚠️  Total extracted text ${extractedText.length} chars — truncating to 60 000`);
       extractedText = extractedText.slice(0, 60000);
     }
-    console.log(`  📝 Total extracted: ${extractedText.length} chars across ${files.length} file(s)`);
+    console.log(`  📝 Total extracted: ${extractedText.length} chars`);
 
-    const claude   = new ClaudeService();
-    const brdData  = await claude.generateBRD({ projectName, userName: authorName, extractedText });
-    const filePath = await generateExcel(brdData, OUTPUT);
+    // Load previous BRD for update scenarios
+    let previousBRD = null;
+    if (brdType === 'update' && updateMethod === 'latest') {
+      previousBRD = loadLastBRD();
+      if (previousBRD) {
+        console.log(`  🔄 Loaded previous BRD: "${previousBRD.project_name}" (${previousBRD.requirements?.length || 0} requirements)`);
+      } else {
+        console.warn('  ⚠️  No previous BRD found — generating fresh');
+      }
+    }
 
+    const claude  = new ClaudeService();
+    const brdData = await claude.generateBRD({
+      projectName, userName: authorName, extractedText,
+      brdType, updateMethod, detailLevel, fitGap, sourceRef, moscow, additionalInputs,
+      previousBRD,
+    });
+
+    let chatLog = [];
+    try { chatLog = JSON.parse(req.body.chatLog || '[]'); } catch { chatLog = []; }
+
+    const usage = brdData._usage || {};
+    logUsage(brdData.project_name, usage);
+
+    saveLastBRD(brdData);
+    const filePath  = await generateOutput(brdData, OUTPUT, outputFormat);
+    const response  = buildResponse(brdData, filePath);
+    saveLastBRD(brdData);
+    saveSession({
+      projectName: brdData.project_name, authorName, brdType, outputFormat,
+      version:     brdData.document_version || 'v1.0',
+      createdAt:   new Date().toISOString(),
+      fileName:    response.fileName,
+      downloadUrl: response.downloadUrl,
+      summary:     response.summary,
+      usage:       { input_tokens: usage.input_tokens || 0, output_tokens: usage.output_tokens || 0 },
+      chatLog,
+    });
     console.log(`  ✅ Done — ${path.basename(filePath)}`);
-    res.json(buildResponse(brdData, filePath));
+    res.json(response);
 
   } catch (err) {
     console.error('❌ Generate BRD (upload) error:', err.message);
@@ -310,19 +455,37 @@ app.post('/api/generate-brd-sharepoint', async (req, res) => {
     });
   }
 
-  const { projectName, authorName = 'BRD Generator', files = [] } = req.body;
+  const {
+    projectName, authorName = 'BRD Generator', files = [],
+    brdType = 'new', updateMethod = '', detailLevel = 'elaborated',
+    fitGap = 'no', sourceRef = 'yes', moscow = 'yes',
+    additionalInputs = '', outputFormat = 'excel',
+  } = req.body;
   if (!projectName) return res.status(400).json({ error: 'Project name is required.' });
   if (!files.length) return res.status(400).json({ error: 'No files selected from SharePoint.' });
 
   try {
-    console.log(`\n📋 [SharePoint] Generating BRD — "${projectName}"  Files: ${files.length}`);
+    console.log(`\n📋 [SharePoint] Generating BRD — "${projectName}"  Files: ${files.length}  Format: ${outputFormat}`);
 
     const extractor = new FileExtractor();
     let extractedText = '';
 
+    // Get a fresh Graph token once for all file downloads
+    const dlToken = await getGraphToken();
+
     for (const file of files) {
       try {
-        const resp  = await axios.get(file.downloadUrl, { responseType: 'arraybuffer', timeout: 30_000 });
+        let resp;
+        if (file.downloadUrl) {
+          // Direct pre-auth URL (no token needed, short-lived)
+          resp = await axios.get(file.downloadUrl, { responseType: 'arraybuffer', timeout: 30_000 });
+        } else {
+          // Fallback: download via Graph API using driveId + fileId
+          resp = await axios.get(
+            `https://graph.microsoft.com/v1.0/drives/${file.driveId}/items/${file.id}/content`,
+            { headers: { Authorization: `Bearer ${dlToken}` }, responseType: 'arraybuffer', timeout: 30_000 }
+          );
+        }
         const buf   = Buffer.from(resp.data);
         const chunk = await extractBuffer(extractor, buf, file.name);
         extractedText += chunk;
@@ -338,19 +501,151 @@ app.post('/api/generate-brd-sharepoint', async (req, res) => {
     }
     console.log(`  📝 Total extracted: ${extractedText.length} chars across ${files.length} file(s)`);
 
+    let previousBRD = null;
+    if (brdType === 'update' && updateMethod === 'latest') {
+      previousBRD = loadLastBRD();
+      if (previousBRD) {
+        console.log(`  🔄 Loaded previous BRD: "${previousBRD.project_name}" (${previousBRD.requirements?.length || 0} requirements)`);
+      }
+    }
+
     const claude   = new ClaudeService();
     const brdData  = await claude.generateBRD({
-      projectName,
-      userName: authorName,
-      extractedText,
+      projectName, userName: authorName, extractedText,
+      brdType, updateMethod, detailLevel, fitGap, sourceRef, moscow, additionalInputs,
+      previousBRD,
     });
-    const filePath = await generateExcel(brdData, OUTPUT);
+    const chatLog = Array.isArray(req.body.chatLog) ? req.body.chatLog : [];
 
+    const spUsage = brdData._usage || {};
+    logUsage(brdData.project_name, spUsage);
+
+    saveLastBRD(brdData);
+    const filePath  = await generateOutput(brdData, OUTPUT, outputFormat);
+    const response  = buildResponse(brdData, filePath);
+    saveLastBRD(brdData);
+    saveSession({
+      projectName: brdData.project_name, authorName, brdType, outputFormat,
+      version:     brdData.document_version || 'v1.0',
+      createdAt:   new Date().toISOString(),
+      fileName:    response.fileName,
+      downloadUrl: response.downloadUrl,
+      summary:     response.summary,
+      usage:       { input_tokens: spUsage.input_tokens || 0, output_tokens: spUsage.output_tokens || 0 },
+      chatLog,
+    });
     console.log(`  ✅ Done — ${path.basename(filePath)}`);
-    res.json(buildResponse(brdData, filePath));
+    res.json(response);
 
   } catch (err) {
     console.error('❌ Generate BRD (SharePoint) error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/sessions ──────────────────────────────────────────────────────────
+app.get('/api/sessions', (_req, res) => {
+  try {
+    // Load newest-first, then deduplicate by project name keeping only the latest
+    const all = fs.readdirSync(SESSIONS_DIR)
+      .filter(f => f.endsWith('.json'))
+      .sort().reverse().slice(0, 500)
+      .map(f => { try { return JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8')); } catch { return null; } })
+      .filter(Boolean);
+
+    const seen = new Set();
+    const sessions = all.filter(s => {
+      // Deduplicate by project + version — each version is a distinct history entry
+      const proj = (s.projectName || '').toLowerCase().trim();
+      const ver  = (s.version || s.summary?.version || 'v1.0').toLowerCase().trim();
+      const key  = `${proj}|${ver}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 50);
+
+    res.json({ sessions });
+  } catch { res.json({ sessions: [] }); }
+});
+
+// ── GET /api/usage ─────────────────────────────────────────────────────────────
+app.get('/api/usage', (_req, res) => {
+  try {
+    if (!fs.existsSync(USAGE_LOG_PATH)) {
+      return res.json({ entries: [], totals: { input_tokens: 0, output_tokens: 0, total_tokens: 0, cost_usd: 0, brd_count: 0 } });
+    }
+    const entries = JSON.parse(fs.readFileSync(USAGE_LOG_PATH, 'utf8'));
+    const totals  = entries.reduce((a, e) => ({
+      input_tokens:  a.input_tokens  + e.input_tokens,
+      output_tokens: a.output_tokens + e.output_tokens,
+      total_tokens:  a.total_tokens  + e.total_tokens,
+      cost_usd:      parseFloat((a.cost_usd + (e.cost_usd || calcCost(e.input_tokens, e.output_tokens))).toFixed(6)),
+      brd_count:     a.brd_count + 1,
+    }), { input_tokens: 0, output_tokens: 0, total_tokens: 0, cost_usd: 0, brd_count: 0 });
+    res.json({ entries, totals, pricing: { model: 'claude-sonnet-4-6', input_per_1m: PRICE_INPUT_PER_M, output_per_1m: PRICE_OUTPUT_PER_M, currency: 'USD' } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/chat ─────────────────────────────────────────────────────────────
+app.post('/api/chat', async (req, res) => {
+  const { messages = [], brdContext = null } = req.body;
+  if (!messages.length) return res.status(400).json({ error: 'messages is required.' });
+
+  const claude = new ClaudeService();
+  if (claude.useMock) {
+    return res.json({ reply: 'AI chat is not available in mock mode. Please configure a Claude API key in the .env file.' });
+  }
+
+  // Build real-time context injected into every chat system prompt
+  const now = new Date();
+  const realTime = {
+    date:       now.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }),
+    time:       now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    isoDate:    now.toISOString().slice(0, 10),
+    timezone:   Intl.DateTimeFormat().resolvedOptions().timeZone,
+    appVersion: require('../package.json').version,
+  };
+
+  // Attach recent BRD project names and usage totals
+  try {
+    const allFiles = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json')).sort().reverse().slice(0, 100);
+    const allSessions = allFiles
+      .map(f => { try { return JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8')); } catch { return null; } })
+      .filter(Boolean);
+
+    const seen = new Set();
+    realTime.recentProjects = allSessions
+      .filter(s => { const k = (s.projectName || '').toLowerCase().trim(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 10)
+      .map(s => `${s.projectName} (${new Date(s.createdAt).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}, ${s.summary?.total || 0} reqs)`);
+
+    realTime.totalBRDsGenerated = allSessions.length;
+  } catch { /* non-fatal */ }
+
+  // Attach cumulative token usage
+  try {
+    if (fs.existsSync(USAGE_LOG_PATH)) {
+      const usageLog = JSON.parse(fs.readFileSync(USAGE_LOG_PATH, 'utf8'));
+      const totals = usageLog.reduce((a, e) => ({
+        input:  a.input  + (e.input_tokens  || 0),
+        output: a.output + (e.output_tokens || 0),
+        cost:   a.cost   + (e.cost_usd || 0),
+      }), { input: 0, output: 0, cost: 0 });
+      realTime.usage = {
+        totalBRDs:     usageLog.length,
+        inputTokens:   totals.input,
+        outputTokens:  totals.output,
+        totalTokens:   totals.input + totals.output,
+        totalCostUSD:  parseFloat(totals.cost.toFixed(4)),
+      };
+    }
+  } catch { /* non-fatal */ }
+
+  try {
+    const reply = await claude.chat(messages, brdContext, realTime);
+    res.json({ reply });
+  } catch (err) {
+    console.error('❌ AI chat error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -359,7 +654,8 @@ app.post('/api/generate-brd-sharepoint', async (req, res) => {
 app.get('/health', (_req, res) => {
   res.json({
     status:      'running',
-    service:     'BRD Generator — Standalone Web App',
+    service:     'Synoptek CE BRD Generator',
+    version:     require('../package.json').version,
     ai:          process.env.CLAUDE_API_KEY ? 'Claude API (live)' : 'Mock mode',
     sharepoint:  SP_CONFIGURED ? 'configured' : 'not configured',
     output:      OUTPUT,
@@ -373,7 +669,7 @@ app.listen(PORT, async () => {
   console.log('║   BRD Generator — Standalone Web App     ║');
   console.log('╚══════════════════════════════════════════╝');
   console.log(`  Local URL    : http://localhost:${PORT}`);
-  console.log(`  AI Mode      : ${process.env.CLAUDE_API_KEY ? '🟢 Claude API' : '🟡 Mock mode'}`);
+  console.log(`  AI Mode      : ${process.env.CLAUDE_API_KEY ? '🟢 Claude API' : '🟡 Mock mode'}`);;
   console.log(`  SharePoint   : ${SP_CONFIGURED              ? '🟢 Configured' : '🔴 Not configured'}`);
   console.log(`  Output folder: ${OUTPUT}`);
 

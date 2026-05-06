@@ -1,7 +1,7 @@
 {
   "name": "brd-generator",
-  "version": "2.0.0",
-  "description": "Synoptek BRD Generator — Standalone Web App",
+  "version": "2.0.49",
+  "description": "Synoptek CE BRD Generator — Standalone Web App",
   "main": "electron/main.js",
   "scripts": {
     "start": "node bot/server.js",
@@ -11,7 +11,7 @@
     "build:exe": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win --x64",
     "build:portable": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win portable --x64",
     "build:zip": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win zip --x64",
-    "publish": "cross-env ELECTRON_BUILDER_RCEDIT_PATH=./electron/rcedit electron-builder --win --x64 --publish always"
+    "publish": "node scripts/publish.js"
   },
   "keywords": [],
   "author": "Synoptek",
@@ -19,6 +19,7 @@
   "type": "commonjs",
   "dependencies": {
     "axios": "^1.15.0",
+    "docx": "^9.6.1",
     "dotenv": "^17.4.1",
     "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0",
@@ -26,7 +27,8 @@
     "localtunnel": "^2.0.2",
     "mammoth": "^1.12.0",
     "multer": "^1.4.5-lts.1",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.18.0"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
@@ -36,7 +38,7 @@
   },
   "build": {
     "appId": "com.synoptek.brd-generator",
-    "productName": "Synoptek BRD Generator",
+    "productName": "Synoptek CE BRD Generator",
     "copyright": "Copyright © 2025 Synoptek",
     "publish": {
       "provider": "github",
@@ -50,6 +52,7 @@
     },
     "files": [
       "electron/**/*",
+      "!electron/rcedit/**",
       "bot/**/*",
       "web/**/*",
       "resources/**/*",
@@ -62,7 +65,8 @@
       "!workflows/**",
       "!teams-manifest/**"
     ],
-    "asar": false,
+    "asar": true,
+    "asarUnpack": ["**/*.node", "**/*.dll"],
     "toolsets": {
       "winCodeSign": "1.1.0"
     },
@@ -70,11 +74,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/icon.png",

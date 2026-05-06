@@ -1,0 +1,29 @@
+name: Build & Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'          # triggers on git tag like v2.0.46
+  workflow_dispatch:  # also allows manual trigger from GitHub Actions UI
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build & publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: npm run publish
