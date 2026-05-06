@@ -1,10 +1,12 @@
 /**
  * brdCore.js — Synoptek BRD Excel generation
  * Unified format across all sheets:
- *   • Synoptek logo + date header (rows 1–2)
- *   • Bold red sheet title (rows 4–5)
- *   • Light-gray (E7E6E6) section/column headers with dark text (row 7)
- *   • Alternating white / light-gray (F2F2F2) data rows from row 8
+ *   • Date header right-aligned (row 1)
+ *   • Spacer row (row 2)
+ *   • Bold red sheet title (rows 3–4)
+ *   • Spacer row (row 5)
+ *   • Light-gray (E7E6E6) section/column headers (row 6)
+ *   • Alternating white / light-gray (F2F2F2) data rows from row 7
  */
 
 const ExcelJS = require('exceljs');
@@ -49,66 +51,32 @@ function cvBdr(cell) {
 }
 
 /**
- * Adds the standard 6-row header block used by every sheet:
- *   Row 1-2  logo (col 1) + date (remaining cols, merged)
- *   Row 3    thin spacer
- *   Row 4-5  red bold title (merged across all cols)
- *   Row 6    thin spacer
- * For single-column sheets the date occupies row 2 col 1 separately.
+ * Adds the standard 5-row header block used by every sheet:
+ *   Row 1    date right-aligned (merged across all cols)
+ *   Row 2    thin spacer
+ *   Rows 3-4 red bold title (merged across all cols)
+ *   Row 5    thin spacer
  */
-function addSheetHeader(ws, d, title, numCols, logoImageId) {
-  // Logo source is 195×187 px (≈ square); display at 46×44 to fill 2 rows of 22 px each
-  const LOGO_W = 46, LOGO_H = 44;
+function addSheetHeader(ws, d, title, numCols) {
+  ws.mergeCells(1, 1, 1, numCols);
+  const dateCell = ws.getCell(1, 1);
+  dateCell.value = `Document Generated: ${d.document_date || ''}`;
+  dateCell.font  = { name: FONT, size: 11, color: { argb: CV.dark } };
+  dateCell.alignment = { vertical: 'middle', horizontal: 'right' };
+  ws.getRow(1).height = 24;
 
-  if (numCols > 1) {
-    ws.mergeCells(1, 1, 2, 1);
-    ws.mergeCells(1, 2, 2, numCols);
+  ws.getRow(2).height = 6;
 
-    const logoCell = ws.getCell(1, 1);
-    logoCell.value = 'Synoptek';
-    logoCell.font  = { name: FONT, size: 15, bold: true, color: { argb: CV.dark } };
-    // indent 7 ≈ 49 px — pushes text past the 46 px logo image
-    logoCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 7 };
-
-    const dateCell = ws.getCell(1, 2);
-    dateCell.value = `Document Generated: ${d.document_date || ''}`;
-    dateCell.font  = { name: FONT, size: 11, color: { argb: CV.dark } };
-    dateCell.alignment = { vertical: 'middle', horizontal: 'right' };
-
-    ws.getRow(1).height = 24;
-    ws.getRow(2).height = 20;
-  } else {
-    // Single-column sheet: logo row + date row
-    const logoCell = ws.getCell(1, 1);
-    logoCell.value = 'Synoptek';
-    logoCell.font  = { name: FONT, size: 15, bold: true, color: { argb: CV.dark } };
-    logoCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 7 };
-
-    const dateCell = ws.getCell(2, 1);
-    dateCell.value = `Document Generated: ${d.document_date || ''}`;
-    dateCell.font  = { name: FONT, size: 11, color: { argb: CV.dark } };
-    dateCell.alignment = { vertical: 'middle', horizontal: 'right' };
-
-    ws.getRow(1).height = 24;
-    ws.getRow(2).height = 20;
-  }
-
-  if (logoImageId !== null) {
-    ws.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: LOGO_W, height: LOGO_H } });
-  }
-
-  ws.getRow(3).height = 6;
-
-  ws.mergeCells(4, 1, 5, numCols);
-  const t = ws.getCell(4, 1);
+  ws.mergeCells(3, 1, 4, numCols);
+  const t = ws.getCell(3, 1);
   t.value = title;
   t.font  = { name: FONT, size: 16, bold: true, color: { argb: CV.red } };
   t.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: CV.white } };
   t.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
   cvBdr(t);
+  ws.getRow(3).height = 24;
   ws.getRow(4).height = 24;
-  ws.getRow(5).height = 24;
-  ws.getRow(6).height = 6;
+  ws.getRow(5).height = 6;
 }
 
 /** Light-gray column header cell (dark text) */
@@ -187,7 +155,7 @@ function cvFull(ws, row, value, alt = false) {
 }
 
 // ── Sheet 1: Cover ────────────────────────────────────────────────────────────
-function buildCover(wb, d, logoImageId) {
+function buildCover(wb, d) {
   const ws = wb.addWorksheet('Cover', { views: [{ showGridLines: false }] });
   ws.columns = [
     { width: 3  },   // A  padding
@@ -196,44 +164,12 @@ function buildCover(wb, d, logoImageId) {
     { width: 3  },   // D  padding
   ];
 
-  // Logo source is 195×187 px (≈ square); display at 46×44 to fill 2 rows
-  // Rows 1-2: Logo (col B) + Date (col C)
-  ws.mergeCells('B1:B2');
-  const logoCell = ws.getCell('B1');
-  logoCell.value = 'Synoptek';
-  logoCell.font  = { name: FONT, size: 15, bold: true, color: { argb: CV.dark } };
-  // indent 7 ≈ 49 px — starts text after the 46 px logo image
-  logoCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 7 };
-
-  ws.mergeCells('C1:C2');
-  const dateCell = ws.getCell('C1');
-  dateCell.value = `Document Generated: ${d.document_date || ''}`;
-  dateCell.font  = { name: FONT, size: 11, color: { argb: CV.dark } };
-  dateCell.alignment = { vertical: 'middle', horizontal: 'right' };
-
-  // Cover: logo at col B (index 1, 0-based), correct aspect ratio
-  if (logoImageId !== null) {
-    ws.addImage(logoImageId, { tl: { col: 1, row: 0 }, ext: { width: 46, height: 44 } });
-  }
-  ws.getRow(1).height = 24;
-  ws.getRow(2).height = 20;
-  ws.getRow(3).height = 6;
-
-  // Rows 4-5: Title
-  ws.mergeCells('B4:C5');
-  const t = ws.getCell('B4');
-  t.value = `${d.project_name || 'BRD'} CRM Business Requirements Document (BRD)`;
-  t.font  = { name: FONT, size: 16, bold: true, color: { argb: CV.red } };
-  t.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: CV.white } };
-  t.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
-  cvBdr(t);
-  ws.getRow(4).height = 24;
-  ws.getRow(5).height = 24;
-  ws.getRow(6).height = 6;
+  const title = `${d.project_name || 'BRD'} CRM Business Requirements Document (BRD)`;
+  addSheetHeader(ws, d, title, 4);
 
   // ── Document Overview ──
   const reqs = d.requirements || [];
-  let r = 7;
+  let r = 6;
   cvSecHdr(ws, r++, '  📋  Document Overview');
 
   const overview = [
@@ -315,9 +251,9 @@ function buildCover(wb, d, logoImageId) {
 }
 
 // ── Sheet 2: BRD (sheet name derived from project name) ───────────────────────
-function buildLESBRD(wb, d, logoImageId) {
+function buildLESBRD(wb, d) {
   const ws = wb.addWorksheet(getBRDSheetName(d.project_name), {
-    views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }],
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 6 }],
   });
   ws.columns = [
     { width: 13.3 },  //  1  ID
@@ -338,9 +274,9 @@ function buildLESBRD(wb, d, logoImageId) {
   ];
 
   const title = `${d.project_name || 'BRD'} — D365 CRM Business Requirements Document (BRD)`;
-  addSheetHeader(ws, d, title, 15, logoImageId);
+  addSheetHeader(ws, d, title, 15);
 
-  // Row 7: column headers
+  // Row 6: column headers
   const HEADERS = [
     'ID', 'Date', 'Source', 'Scope', 'Sub-part',
     'Requirement as high-level need, spec or user story',
@@ -349,11 +285,11 @@ function buildLESBRD(wb, d, logoImageId) {
     'Technical Comments', 'Remarks', 'Lead Requested', 'Meeting Participants',
   ];
   const wrapH = new Set([5, 10, 11, 12]);
-  HEADERS.forEach((h, i) => nvHdr(ws, 7, i + 1, h, wrapH.has(i)));
-  ws.getRow(7).height = 32;
+  HEADERS.forEach((h, i) => nvHdr(ws, 6, i + 1, h, wrapH.has(i)));
+  ws.getRow(6).height = 32;
 
-  // Data rows from row 8
-  let r = 8;
+  // Data rows from row 7
+  let r = 7;
   (d.requirements || []).forEach((req, i) => {
     const id  = req.id || `${getBRDPrefix(d.project_name)}-${String(i + 1).padStart(3, '0')}`;
     const alt = i % 2 !== 0;
@@ -380,9 +316,9 @@ function buildLESBRD(wb, d, logoImageId) {
 }
 
 // ── Sheet 3: Scope Checklist Requirements ─────────────────────────────────────
-function buildScopeChecklist(wb, d, logoImageId) {
+function buildScopeChecklist(wb, d) {
   const ws = wb.addWorksheet('Scope Checklist Requirements', {
-    views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }],
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 6 }],
   });
   ws.columns = [
     { width: 22.4  },  // Category
@@ -391,14 +327,14 @@ function buildScopeChecklist(wb, d, logoImageId) {
     { width: 131.6 },  // Requirement Description
   ];
 
-  addSheetHeader(ws, d, 'Scope Checklist Requirements', 4, logoImageId);
+  addSheetHeader(ws, d, 'Scope Checklist Requirements', 4);
 
   ['Category', 'Module', 'Sub-Category', 'Requirement Description'].forEach((h, i) =>
-    nvHdr(ws, 7, i + 1, h, i === 3)
+    nvHdr(ws, 6, i + 1, h, i === 3)
   );
-  ws.getRow(7).height = 22;
+  ws.getRow(6).height = 22;
 
-  let r = 8;
+  let r = 7;
   (d.scope_checklist || []).forEach((item, i) => {
     const alt = i % 2 !== 0;
     nvDat(ws, r, 1, item.category    || '', { alt });
@@ -410,9 +346,9 @@ function buildScopeChecklist(wb, d, logoImageId) {
 }
 
 // ── Sheet 4: Fit-Gap Analysis ─────────────────────────────────────────────────
-function buildFitGap(wb, d, logoImageId) {
+function buildFitGap(wb, d) {
   const ws = wb.addWorksheet('Fit-Gap Analysis', {
-    views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }],
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 6 }],
   });
   ws.columns = [
     { width: 13.3 },   // 1  Req ID
@@ -423,14 +359,14 @@ function buildFitGap(wb, d, logoImageId) {
     { width: 12.0 },   // 6  Priority
   ];
 
-  addSheetHeader(ws, d, 'Fit-Gap Analysis', 6, logoImageId);
+  addSheetHeader(ws, d, 'Fit-Gap Analysis', 6);
 
   ['Req ID', 'Requirement', 'Current State (Have Today)', 'Gap / Pain Point', 'Recommendation / D365 Approach', 'Priority'].forEach((h, i) =>
-    nvHdr(ws, 7, i + 1, h, i > 0 && i < 5)
+    nvHdr(ws, 6, i + 1, h, i > 0 && i < 5)
   );
-  ws.getRow(7).height = 28;
+  ws.getRow(6).height = 28;
 
-  let r = 8;
+  let r = 7;
   (d.fit_gap_analysis || []).forEach((item, i) => {
     const alt = i % 2 !== 0;
     nvDat(ws, r, 1, item.requirement_id || '', { alt });
@@ -444,18 +380,18 @@ function buildFitGap(wb, d, logoImageId) {
 }
 
 // ── Sheet 5: Out of Scope ─────────────────────────────────────────────────────
-function buildOutOfScope(wb, d, logoImageId) {
+function buildOutOfScope(wb, d) {
   const ws = wb.addWorksheet('Out of Scope', {
-    views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }],
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 6 }],
   });
   ws.columns = [{ width: 222.9 }];
 
-  addSheetHeader(ws, d, 'Out of Scope', 1, logoImageId);
+  addSheetHeader(ws, d, 'Out of Scope', 1);
 
-  nvHdr(ws, 7, 1, 'Out of Scope Items');
-  ws.getRow(7).height = 22;
+  nvHdr(ws, 6, 1, 'Out of Scope Items');
+  ws.getRow(6).height = 22;
 
-  let r = 8;
+  let r = 7;
   (d.out_of_scope || []).forEach((item, i) => {
     nvDat(ws, r, 1, typeof item === 'string' ? item : (item.item || ''), {
       alt: i % 2 !== 0, wrap: true,
@@ -464,22 +400,22 @@ function buildOutOfScope(wb, d, logoImageId) {
   });
 }
 
-// ── Sheet 5: Scope ────────────────────────────────────────────────────────────
-function buildScope(wb, d, logoImageId) {
+// ── Sheet 6: Scope ────────────────────────────────────────────────────────────
+function buildScope(wb, d) {
   const ws = wb.addWorksheet('Scope', {
-    views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }],
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 6 }],
   });
   ws.columns = [
     { width: 46.3  },  // Scope
     { width: 104.0 },  // Description
   ];
 
-  addSheetHeader(ws, d, 'Scope', 2, logoImageId);
+  addSheetHeader(ws, d, 'Scope', 2);
 
-  ['Scope', 'Description'].forEach((h, i) => nvHdr(ws, 7, i + 1, h, i === 1));
-  ws.getRow(7).height = 22;
+  ['Scope', 'Description'].forEach((h, i) => nvHdr(ws, 6, i + 1, h, i === 1));
+  ws.getRow(6).height = 22;
 
-  let r = 8;
+  let r = 7;
   (d.scope_definitions || []).forEach((item, i) => {
     const alt = i % 2 !== 0;
     nvDat(ws, r, 1, item.scope       || '', { alt });
@@ -488,10 +424,10 @@ function buildScope(wb, d, logoImageId) {
   });
 }
 
-// ── Sheet 6: Sign Off - Acceptance ───────────────────────────────────────────
-function buildSignOff(wb, d, logoImageId) {
+// ── Sheet 7: Sign Off - Acceptance ───────────────────────────────────────────
+function buildSignOff(wb, d) {
   const ws = wb.addWorksheet('Sign Off - Acceptance', {
-    views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }],
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 6 }],
   });
   ws.columns = [
     { width: 22.0 },  // Version
@@ -502,12 +438,12 @@ function buildSignOff(wb, d, logoImageId) {
 
   addSheetHeader(ws, d,
     'Signature & Acceptance — Signing indicates understanding and acceptance of this document.',
-    4, logoImageId);
+    4);
 
   ['Version', 'Name and Role', 'Signature', 'Date'].forEach((h, i) =>
-    nvHdr(ws, 7, i + 1, h)
+    nvHdr(ws, 6, i + 1, h)
   );
-  ws.getRow(7).height = 22;
+  ws.getRow(6).height = 22;
 
   const rows = (d.sign_off && d.sign_off.length)
     ? d.sign_off
@@ -519,7 +455,7 @@ function buildSignOff(wb, d, logoImageId) {
       ];
 
   rows.forEach((row, i) => {
-    const r   = 8 + i;
+    const r   = 7 + i;
     const alt = i % 2 !== 0;
     nvDat(ws, r, 1, row.version       || '', { alt });
     nvDat(ws, r, 2, row.name_and_role || '', { alt });
@@ -529,10 +465,10 @@ function buildSignOff(wb, d, logoImageId) {
   });
 }
 
-// ── Sheet 7: LOV's ────────────────────────────────────────────────────────────
-function buildLOVs(wb, d, logoImageId) {
+// ── Sheet 8: LOV's ────────────────────────────────────────────────────────────
+function buildLOVs(wb, d) {
   const ws = wb.addWorksheet("LOV's", {
-    views: [{ showGridLines: false, state: 'frozen', ySplit: 7 }],
+    views: [{ showGridLines: false, state: 'frozen', ySplit: 6 }],
   });
   ws.columns = [
     { width: 25.0 },  // Epic
@@ -541,12 +477,12 @@ function buildLOVs(wb, d, logoImageId) {
     { width: 10.9 },  // Tag
   ];
 
-  addSheetHeader(ws, d, 'Lists of Values', 4, logoImageId);
+  addSheetHeader(ws, d, 'Lists of Values', 4);
 
-  ['Epic', 'Cycle', 'Column1', 'Column2'].forEach((h, i) => nvHdr(ws, 7, i + 1, h));
-  ws.getRow(7).height = 22;
+  ['Epic', 'Cycle', 'Column1', 'Column2'].forEach((h, i) => nvHdr(ws, 6, i + 1, h));
+  ws.getRow(6).height = 22;
 
-  let r = 8;
+  let r = 7;
   (d.lovs || []).forEach((item, i) => {
     const alt   = i % 2 !== 0;
     const epic  = item.epic  || '';
@@ -559,15 +495,15 @@ function buildLOVs(wb, d, logoImageId) {
   });
 }
 
-// ── Sheet 8: Selections ───────────────────────────────────────────────────────
-function buildSelections(wb, d, logoImageId) {
+// ── Sheet 9: Selections ───────────────────────────────────────────────────────
+function buildSelections(wb, d) {
   const ws = wb.addWorksheet('Selections', { views: [{ showGridLines: false }] });
   ws.columns = [{ width: 71.4 }];
 
-  addSheetHeader(ws, d, 'Selections', 1, logoImageId);
+  addSheetHeader(ws, d, 'Selections', 1);
 
   // Covered by? section
-  nvSecHdr(ws, 7, 1, 1, '  Covered by? Selections');
+  nvSecHdr(ws, 6, 1, 1, '  Covered by? Selections');
   const coveredBy = (d.covered_by_selections && d.covered_by_selections.length)
     ? d.covered_by_selections
     : [
@@ -582,12 +518,12 @@ function buildSelections(wb, d, logoImageId) {
         'Other',
       ];
   coveredBy.forEach((v, i) => {
-    nvDat(ws, 8 + i, 1, v, { alt: i % 2 !== 0 });
-    ws.getRow(8 + i).height = 16;
+    nvDat(ws, 7 + i, 1, v, { alt: i % 2 !== 0 });
+    ws.getRow(7 + i).height = 16;
   });
 
   // Have today? section
-  const sep = 8 + coveredBy.length;
+  const sep = 7 + coveredBy.length;
   ws.getRow(sep).height = 6;
   nvSecHdr(ws, sep + 1, 1, 1, '  Have today? Selections');
   const haveToday = (d.have_today_selections && d.have_today_selections.length)
@@ -614,24 +550,15 @@ async function generateExcel(brdData, outputDir) {
   wb.created  = new Date();
   wb.modified = new Date();
 
-  // Load logo once; reuse the same imageId across all worksheets
-  const logoPath = path.join(__dirname, '..', 'web', 'synoptek-logo.png');
-  let logoImageId = null;
-  try {
-    if (fs.existsSync(logoPath)) {
-      logoImageId = wb.addImage({ buffer: fs.readFileSync(logoPath), extension: 'png' });
-    }
-  } catch (_) {}
-
-  buildCover(wb, brdData, logoImageId);
-  buildLESBRD(wb, brdData, logoImageId);
-  buildScopeChecklist(wb, brdData, logoImageId);
-  buildFitGap(wb, brdData, logoImageId);
-  buildOutOfScope(wb, brdData, logoImageId);
-  buildScope(wb, brdData, logoImageId);
-  buildSignOff(wb, brdData, logoImageId);
-  buildLOVs(wb, brdData, logoImageId);
-  buildSelections(wb, brdData, logoImageId);
+  buildCover(wb, brdData);
+  buildLESBRD(wb, brdData);
+  buildScopeChecklist(wb, brdData);
+  buildFitGap(wb, brdData);
+  buildOutOfScope(wb, brdData);
+  buildScope(wb, brdData);
+  buildSignOff(wb, brdData);
+  buildLOVs(wb, brdData);
+  buildSelections(wb, brdData);
 
   const safe  = (brdData.project_name || 'BRD').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/ /g, '_');
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');

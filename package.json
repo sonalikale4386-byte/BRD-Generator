@@ -1,6 +1,6 @@
 {
   "name": "brd-generator",
-  "version": "2.0.51",
+  "version": "2.0.52",
   "description": "Synoptek CE BRD Generator — Standalone Web App",
   "main": "electron/main.js",
   "scripts": {
