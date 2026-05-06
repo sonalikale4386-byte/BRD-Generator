@@ -1187,11 +1187,10 @@ function renderSidebar(sessions) {
     const item = document.createElement('div');
     item.className = 'sidebar-item' + (s.id === activeSidebarId ? ' active' : '');
     item.dataset.id = s.id;
-    const ver = (s.version || s.summary?.version || 'v1.0').toUpperCase();
     item.innerHTML = `
       <div class="sidebar-item-icon">${icon}</div>
       <div class="sidebar-item-info">
-        <div class="sidebar-item-name">${esc(s.projectName || 'Untitled')} <span style="font-size:10px;font-weight:600;background:#1d4ed8;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle">${esc(ver)}</span></div>
+        <div class="sidebar-item-name">${esc(s.projectName || 'Untitled')}</div>
         <div class="sidebar-item-meta">${date} · ${(s.summary?.total || 0)} reqs</div>
       </div>`;
     item.addEventListener('click', () => openSession(s));

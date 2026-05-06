@@ -185,6 +185,33 @@ function saveSession(data) {
   } catch (e) { console.warn('⚠️  Could not save session:', e.message); return null; }
 }
 
+/**
+ * Compute the next sequential version for a project.
+ * New BRD always starts at V1.0.
+ * Each update increments the major number: V1.0 → V2.0 → V3.0 …
+ */
+function getNextVersion(projectName, brdType) {
+  if (brdType !== 'update') return 'V1.0';
+  try {
+    const allFiles = fs.readdirSync(SESSIONS_DIR)
+      .filter(f => f.endsWith('.json')).sort().reverse();
+    const projectKey = (projectName || '').toLowerCase().trim();
+    let maxVer = 0;
+    for (const f of allFiles) {
+      try {
+        const s = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
+        if ((s.projectName || '').toLowerCase().trim() !== projectKey) continue;
+        const raw   = s.version || s.summary?.version || 'V1.0';
+        const match = raw.match(/(\d+)/);
+        if (match) maxVer = Math.max(maxVer, parseInt(match[1]));
+      } catch { /* skip corrupt file */ }
+    }
+    return `V${maxVer + 1}.0`;
+  } catch {
+    return 'V2.0';
+  }
+}
+
 /** Persist the latest BRD JSON so it can be reloaded for future updates */
 function saveLastBRD(brdData) {
   try {
@@ -418,6 +445,9 @@ app.post('/api/generate-brd', upload.array('files', 10), async (req, res) => {
       previousBRD,
     });
 
+    // Override version with our sequential numbering (V1.0, V2.0, V3.0 …)
+    brdData.document_version = getNextVersion(projectName, brdType);
+
     let chatLog = [];
     try { chatLog = JSON.parse(req.body.chatLog || '[]'); } catch { chatLog = []; }
 
@@ -515,6 +545,10 @@ app.post('/api/generate-brd-sharepoint', async (req, res) => {
       brdType, updateMethod, detailLevel, fitGap, sourceRef, moscow, additionalInputs,
       previousBRD,
     });
+
+    // Override version with our sequential numbering (V1.0, V2.0, V3.0 …)
+    brdData.document_version = getNextVersion(projectName, brdType);
+
     const chatLog = Array.isArray(req.body.chatLog) ? req.body.chatLog : [];
 
     const spUsage = brdData._usage || {};
@@ -555,10 +589,7 @@ app.get('/api/sessions', (_req, res) => {
 
     const seen = new Set();
     const sessions = all.filter(s => {
-      // Deduplicate by project + version — each version is a distinct history entry
-      const proj = (s.projectName || '').toLowerCase().trim();
-      const ver  = (s.version || s.summary?.version || 'v1.0').toLowerCase().trim();
-      const key  = `${proj}|${ver}`;
+      const key = (s.projectName || '').toLowerCase().trim();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
